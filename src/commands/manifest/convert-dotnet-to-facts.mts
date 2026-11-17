@@ -9,6 +9,7 @@ import { logger } from '../../utils/logger.mts'
 import type { EcosystemBuildConfig } from './generate-recursive-manifests.mts'
 import type {
   BuildOptionHints,
+  ReachabilitySettings,
   RunManifestFactsOutcome,
   SocketFactsContext,
 } from './run-manifest-facts.mts'
@@ -23,6 +24,7 @@ export async function convertDotnetToFacts({
   entryFile,
   excludePaths,
   hints,
+  reachability,
 }: {
   config: EcosystemBuildConfig
   context?: SocketFactsContext | undefined
@@ -31,6 +33,7 @@ export async function convertDotnetToFacts({
   entryFile?: string | undefined
   excludePaths?: string[] | undefined
   hints?: BuildOptionHints | undefined
+  reachability?: ReachabilitySettings | undefined
 }): Promise<RunManifestFactsOutcome> {
   const entries = entryFile ? [entryFile] : findDotnetEntries(cwd)
   if (!entries.length) {
@@ -53,6 +56,7 @@ export async function convertDotnetToFacts({
       ecosystem: 'dotnet',
       excludePaths,
       hints,
+      reachability,
       root: { dir, entryFile: entry },
     })
     if (outcome === 'covered') {
