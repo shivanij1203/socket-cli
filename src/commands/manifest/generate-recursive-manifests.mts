@@ -717,7 +717,7 @@ async function runCandidate(
   dirConfig: EcosystemBuildConfig,
 ): Promise<Run | undefined> {
   const options = runOptions(ctx, ecosystem, candidate, dirConfig)
-  if (ctx.context.workDir.withFiles) {
+  if (ctx.context.workDir.purpose === 'reachability') {
     options.reachability = ctx
       .resolveSettings(ecosystem, candidate.root)
       .reachability()
@@ -830,7 +830,7 @@ export async function generateRecursiveManifests({
     for (const root of roots) {
       const settings = resolveSettings(tool, root)
       if (
-        context.workDir?.withFiles &&
+        context.workDir?.purpose === 'reachability' &&
         !getSkipReason(tool, settings.sockJson.defaults?.manifest?.[tool])
       ) {
         settings.reachability()
