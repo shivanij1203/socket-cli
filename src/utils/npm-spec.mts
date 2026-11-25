@@ -57,6 +57,63 @@ export function safeNpa(
   return undefined
 }
 
+type NpaResult = NonNullable<ReturnType<typeof safeNpa>>
+
+/**
+ * Resolve a parsed spec to a name and version, following npm aliases.
+ * An alias like `my-lodash@npm:lodash@4.17.21` installs the aliased package,
+ * so resolve to its subSpec instead of the alias name.
+ */
+function resultToParsedSpec(
+  parsed: NpaResult,
+  fallbackName: string,
+): ParsedPackageSpec {
+  if (parsed.type === 'alias') {
+    // The base Result type doesn't expose the alias subSpec, so cast to read it.
+    const { subSpec } = parsed as { subSpec?: NpaResult }
+    if (subSpec) {
+      return resultToParsedSpec(subSpec, fallbackName)
+    }
+  }
+
+  // Extract name and version from parsed spec.
+  const name = parsed.name || fallbackName
+  let version: string | undefined
+
+  // Handle different spec types from npm-package-arg.
+  if (
+    parsed.type === 'tag' ||
+    parsed.type === 'version' ||
+    parsed.type === 'range'
+  ) {
+    // For npm registry packages:
+    // - type 'tag': latest, beta, etc.
+    // - type 'version': exact version like 1.0.0
+    // - type 'range': version range like ^1.0.0, ~1.0.0, or * for bare names
+    // Don't include '*' as a version - it means "any version".
+    if (parsed.fetchSpec && parsed.fetchSpec !== '*') {
+      version = parsed.fetchSpec
+    } else if (
+      parsed.rawSpec &&
+      parsed.rawSpec !== '*' &&
+      parsed.rawSpec !== parsed.name
+    ) {
+      version = parsed.rawSpec
+    }
+  } else if (
+    parsed.type === 'git' ||
+    parsed.type === 'remote' ||
+    parsed.type === 'file'
+  ) {
+    // For non-registry specs, use rawSpec if different from name.
+    if (parsed.rawSpec && parsed.rawSpec !== parsed.name) {
+      version = parsed.rawSpec
+    }
+  }
+
+  return { name, version }
+}
+
 /**
  * Parse npm package specification into name and version.
  * Uses npm-package-arg for proper handling of various spec formats:
@@ -98,42 +155,8 @@ export function safeParseNpmSpec(
     }
   }
 
-  // Extract name and version from parsed spec.
-  const name = parsed.name || pkgSpec
-  let version: string | undefined
-
-  // Handle different spec types from npm-package-arg.
-  if (
-    parsed.type === 'tag' ||
-    parsed.type === 'version' ||
-    parsed.type === 'range'
-  ) {
-    // For npm registry packages:
-    // - type 'tag': latest, beta, etc.
-    // - type 'version': exact version like 1.0.0
-    // - type 'range': version range like ^1.0.0, ~1.0.0, or * for bare names
-    // Don't include '*' as a version - it means "any version".
-    if (parsed.fetchSpec && parsed.fetchSpec !== '*') {
-      version = parsed.fetchSpec
-    } else if (
-      parsed.rawSpec &&
-      parsed.rawSpec !== '*' &&
-      parsed.rawSpec !== parsed.name
-    ) {
-      version = parsed.rawSpec
-    }
-  } else if (
-    parsed.type === 'git' ||
-    parsed.type === 'remote' ||
-    parsed.type === 'file'
-  ) {
-    // For non-registry specs, use rawSpec if different from name.
-    if (parsed.rawSpec && parsed.rawSpec !== parsed.name) {
-      version = parsed.rawSpec
-    }
-  }
-
-  return { name, version }
+  // Resolve the parsed spec, following npm aliases to the installed package.
+  return resultToParsedSpec(parsed, pkgSpec)
 }
 
 /**
